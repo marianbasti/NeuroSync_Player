@@ -3,6 +3,7 @@
 
 import os
 import pygame
+import logging
 from threading import Thread
 
 from livelink.connect.livelink_init import create_socket_connection, initialize_py_face
@@ -16,33 +17,38 @@ def process_wav_file(wav_file, py_face, socket_connection, default_animation_thr
     """
     Processes the wav file by sending it to the API and running the animation.
     """
+    logging.info(f"Processing file: {wav_file}")
 
     # Check if the file exists
     if not os.path.exists(wav_file):
-        print(f"File {wav_file} does not exist.")
+        logging.error(f"File {wav_file} does not exist.")
         return
 
     # Read the wav file as bytes
     audio_bytes = read_audio_file_as_bytes(wav_file)
     
     if audio_bytes is None:
-        print(f"Failed to read {wav_file}")
+        logging.error(f"Failed to read {wav_file}")
         return
+
+    logging.info(f"Successfully read {wav_file}")
 
     # Send the audio bytes to the API and get the blendshapes
     blendshapes = send_audio_to_neurosync(audio_bytes)
     
     if blendshapes is None:
-        print("Failed to get blendshapes from the API.")
+        logging.error("Failed to get blendshapes from the API.")
         return
+
+    logging.info("Successfully received blendshapes from the API")
 
     # Run the animation using the blendshapes data
     run_audio_animation(wav_file, blendshapes, py_face, socket_connection, default_animation_thread)
-    
-    # Save the generated blendshape data
-    save_generated_data_from_wav(wav_file, blendshapes)
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    logging.info("Initializing directories and resources")
+
     # Initialize directories and other resources
     initialize_directories()
 
@@ -53,6 +59,7 @@ if __name__ == "__main__":
     # Start the default animation thread
     default_animation_thread = Thread(target=default_animation_loop, args=(py_face,))
     default_animation_thread.start()
+    logging.info("Default animation thread started")
 
     try:
         while True:
@@ -64,9 +71,11 @@ if __name__ == "__main__":
             process_wav_file(wav_file, py_face, socket_connection, default_animation_thread)
 
     finally:
+        logging.info("Stopping default animation and cleaning up")
         # Stop the default animation when quitting
         stop_default_animation.set()
         if default_animation_thread:
             default_animation_thread.join()
         pygame.quit()
         socket_connection.close()
+        logging.info("Cleanup complete")
